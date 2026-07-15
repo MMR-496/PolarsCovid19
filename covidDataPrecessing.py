@@ -4,7 +4,7 @@ import time
 import polars.selectors as cs
 
 
-pl.Config.set_tbl_cols(-1)
+#pl.Config.set_tbl_cols(-1)
 
 
 def validar(data: pl.LazyFrame, ini : int):
@@ -15,11 +15,17 @@ def validar(data: pl.LazyFrame, ini : int):
     if columnas == 40:
         print("Puedo limpiar este archivo de 40 columnas")
         
+        edades = (data
+         .group_by('EDAD')
+         .len()
+         .sort('len', descending=True)
+         #.collect()
+        )
         #Borramos los registros que cumplan las siguientes condiciones
         #data = data.remove((pl.col('PAIS_NACIONALIDAD') == 'Otro') | (pl.col('PAIS_NACIONALIDAD') == 'SE DESCONOCE') | (pl.col('PAIS_NACIONALIDAD') == 'Zona Neutral') | (pl.col('PAIS_NACIONALIDAD') == '99'))
         data = (data
             .filter(
-                ~pl.col('PAIS_NACIONALIDAD').is_in(['Otro','SE DESCONOCE','Zona Neutral','99'])
+                (~pl.col('PAIS_NACIONALIDAD').is_in(['Otro','SE DESCONOCE','Zona Neutral','99'])) & (pl.col('EDAD') <= 95) #Eliminamos registros con nacionalidad confusa y edad no muy realista
             )
         )
         #Total de infectados
@@ -78,7 +84,7 @@ def validar(data: pl.LazyFrame, ini : int):
             .alias('SEXOSEP')
              )
             .select(pl.col('SEXOSEP'), pl.col('EDAD'))
-                .group_by(pl.col('SEXOSEP')).mean().count()
+                .group_by(pl.col('SEXOSEP')).mean()
             
          )
         
@@ -151,11 +157,12 @@ def validar(data: pl.LazyFrame, ini : int):
             
         )
         
-        output7, output3, output4, output5 = pl.collect_all([
+        output7, output3, output4, output5, edades = pl.collect_all([
             output7,
             output3,
             output4,
-            output5
+            output5, 
+            edades
         ])
 
         #---------------------------------------------
@@ -174,7 +181,7 @@ def validar(data: pl.LazyFrame, ini : int):
         )
 
         fig.update_traces(textposition='outside', textinfo='percent+label', textfont_size=15)
-        fig.show()
+        #fig.show()
         #------Barras de sexos
         fig = px.bar(
             output4,
@@ -193,7 +200,7 @@ def validar(data: pl.LazyFrame, ini : int):
             },
             template='simple_white',
             width=600)
-        fig.show()
+        #fig.show()
         #------Pie de sexos
         fig = px.pie(
             output4,
@@ -216,7 +223,7 @@ def validar(data: pl.LazyFrame, ini : int):
         )
 
         fig.update_traces(textposition='outside', textinfo='percent+label', textfont_size=15)
-        fig.show()
+        #fig.show()
 
         #------Barra de combinaciones
         fig = px.bar(
@@ -238,7 +245,7 @@ def validar(data: pl.LazyFrame, ini : int):
             },
             template='simple_white',
             width=600)
-        fig.show()
+        #fig.show()
 
         
         #---------------------------------------------
@@ -251,6 +258,7 @@ def validar(data: pl.LazyFrame, ini : int):
         print(output4)
         print('Promedio de edad separado por sexo e infeccion')
         print(output5)
+        print(edades)
         #print('Nacionalidades')
         #print(output)
         #output.write_csv("despues.txt", separator=",")
@@ -270,7 +278,7 @@ def validar(data: pl.LazyFrame, ini : int):
         #Se limṕia el dataset
         data = (data
             .filter(
-                ~pl.col('PAIS_NACIONALIDAD').is_in(['Otro','SE DESCONOCE','Zona Neutral','99'])
+                (~pl.col('PAIS_NACIONALIDAD').is_in(['Otro','SE DESCONOCE','Zona Neutral','99'])) & (pl.col('EDAD') <= 95) #Eliminamos registros con nacionalidad confusa y edad no muy realista
             )
         )
 
@@ -330,6 +338,7 @@ def validar(data: pl.LazyFrame, ini : int):
              )
             .select(pl.col('SEXOSEP'), pl.col('EDAD'))
                 .group_by(pl.col('SEXOSEP')).mean()
+                .sort('SEXOSEP')
             
             
          )
@@ -423,8 +432,58 @@ def validar(data: pl.LazyFrame, ini : int):
 
         #output.write_csv("contabilizacion.txt", separator=",")
         fin = time.time_ns()
-      ,97,2,29,1,97,2,2,2,2,2,2,2,2,2,2,2,2,1,2,97,1,2,7,99,"México","97",97
-"2022-07-20","dc449a",2,4,"29",2,"29","29","041",1,"2021-08-24","2021-08-23","9999-99-99",97,2,27,1,97,2,2,2,2,2,2,2,2,2,2,2,2,2,2,97,1,2,7,99,"México","97",97
-"2022-07-20","e0be12",2,5,"13",2,"13","13","006",1,"2021-08-26","2021-08-23","9999-99-99",97,2,37,1,97,2,2,2,2,2,2,2,2,2,2,2,2,1,2,97,1,1,3,99,"México","97",97
-"2022-07-20","d7f2df",2,12,"09",1,"09","09","010",1,"2021-08-28","2021-08-28","9999-99-99",97,2,23,1,2,2,2,2,2,2,2,2,2,2,2,2,2,1,2,97,1,2,7,99,"México","97",97
-"2022-07-20","b88
+        print("Duración del procesamiento: ",(fin-ini)/1e9," segundos")
+anio = int(input("Elige el año a procesar (2020-2025): "))
+if anio in range(2020, 2026):
+    ini = time.time_ns()
+    print("Iniciando procesamiento")
+    data = pl.scan_csv(
+        f'COVID19MEXICO{anio}.csv',
+        schema_overrides={
+            "PAIS_ORIGEN": pl.String
+        }
+    )
+    validar(data, ini)
+else: 
+    print("No es una opción")
+
+
+#Esto es de todos los años, así que no importa que opción se escoja, siempre se rendizará la figura
+df = pl.DataFrame({
+    "SEXOSEP": [
+        "Hombre Infectado","Hombre Infectado","Hombre Infectado","Hombre Infectado","Hombre Infectado","Hombre Infectado",
+        "Hombre NO Infectado","Hombre NO Infectado","Hombre NO Infectado","Hombre NO Infectado","Hombre NO Infectado","Hombre NO Infectado",
+        "Mujer Infectada","Mujer Infectada","Mujer Infectada","Mujer Infectada","Mujer Infectada","Mujer Infectada",
+        "Mujer NO Infectada","Mujer NO Infectada","Mujer NO Infectada","Mujer NO Infectada","Mujer NO Infectada","Mujer NO Infectada",
+    ],
+    "ANIO": [
+        2020,2021,2022,2023,2024,2025,
+        2020,2021,2022,2023,2024,2025,
+        2020,2021,2022,2023,2024,2025,
+        2020,2021,2022,2023,2024,2025,
+    ],
+    "EDAD_PROMEDIO": [
+        43.328905,39.186322,38.891379,42.432731,43.485141,41.578341,
+        39.297105,37.452445,36.811603,37.183085,37.681269,36.912470,
+        39.116872,39.073614,37.954026,40.600500,44.598175,39.578087,
+        39.116872,36.364410,35.155579,34.449414,34.196811,32.825702,
+    ]
+})
+
+fig = px.line(df, 
+              x= 'ANIO', 
+              y ='EDAD_PROMEDIO', 
+              color ='SEXOSEP', 
+              markers=True, 
+              title='Promedio de edad por año',
+              labels={'EDAD_PROMEDIO':'Edad Promedio', 
+                      'ANIO': 'Año',
+                      'SEXOSEP': 'Grupo'},
+               color_discrete_map={
+                    'Hombre infectado': "#d85c58",
+                    'Mujer infectada': "#a83a37",
+                    'Hombre NO infectado': "#1985af",
+                    'Mujer NO infectada': "#6babcf"
+            }
+              )
+fig.show()
